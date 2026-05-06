@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Панель администратора — Транссервис{% endblock %}
+
+{% block content %}
+
+<div class="admin-header">
+  <h1>⚙️ Панель администратора</h1>
+  <p>Управление форумом и ИИ-модерацией</p>
+</div>
+
+<!-- Статистика -->
+<div class="admin-stats">
+  <div class="astat astat-blue">
+    <div class="astat-icon">👥</div>
+    <div class="astat-num">{{ stats.users }}</div>
+    <div class="astat-label">Пользователей</div>
+  </div>
+  <div class="astat astat-green">
+    <div class="astat-icon">💬</div>
+    <div class="astat-num">{{ stats.posts }}</div>
+    <div class="astat-label">Одобрено постов</div>
+  </div>
+  <div class="astat astat-yellow">
+    <div class="astat-icon">⏳</div>
+    <div class="astat-num">{{ stats.pending }}</div>
+    <div class="astat-label">На проверке</div>
+  </div>
+  <div class="astat astat-red">
+    <div class="astat-icon">🚫</div>
+    <div class="astat-num">{{ stats.rejected }}</div>
+    <div class="astat-label">Отклонено</div>
+  </div>
+  <div class="astat astat-purple">
+    <div class="astat-icon">📌</div>
+    <div class="astat-num">{{ stats.topics }}</div>
+    <div class="astat-label">Всего тем</div>
+  </div>
+</div>
+
+<!-- Вкладки -->
+<div class="admin-tabs">
+  <button class="admin-tab active" data-tab="moderation">
+    🛡️ Модерация
+    {% if stats.pending > 0 %}
+      <span class="tab-badge">{{ stats.pending }}</span>
+    {% endif %}
+  </button>
+  <button class="admin-tab" data-tab="users">
+    👥 Пользователи
+  </button>
+</div>
+
+<!-- Вкладка: Модерация -->
+<div class="admin-panel" id="tab-moderation">
+  <h2>🛡️ Ожидают проверки ({{ pending_posts|length }})</h2>
+
+  {% if pending_posts %}
+  <div class="moderation-list">
+    {% for post in pending_posts %}
+    <div class="mod-card">
+      <div class="mod-card-header">
+        <div class="mod-meta">
+          <strong>{{ post.username }}</strong>
+          <span>в теме: «{{ post.topic_title }}»</span>
+          <span class="mod-date">{{ post.created_at[:16].replace('T',' ') }}</span>
+        </div>
+        <div class="mod-score">
+          <div class="toxicity-bar">
+            <div class="toxicity-fill"
+                 style="width: {{ (post.toxicity_score * 100)|int }}%"
+                 data-score="{{ post.toxicity_score }}"></div>
+          </div>
+          <span>Токсичность: {{ "%.0f"|format(post.toxicity_score * 100) }}%</span>
+        </div>
+      </div>
+
+      <div class="mod-content">{{ post.content }}</div>
+
+      {% if post.ai_comment %}
+      <div class="mod-ai-comment">
+        🤖 <em>{{ post.ai_comment }}</em>
+      </div>
+      {% endif %}
+
+      <div class="mod-actions">
+        <a href="{{ url_for('admin_moderate', post_id=post.id, decision=1) }}"
+           class="btn btn-success btn-sm">
+          ✅ Одобрить
+        </a>
+        <a href="{{ url_for('admin_moderate', post_id=post.id, decision=2) }}"
+           class="btn btn-danger btn-sm">
+          ❌ Отклонить
+        </a>
+        <a href="{{ url_for('admin_delete_post', post_id=post.id) }}"
+           class="btn btn-outline btn-sm"
+           onclick="return confirm('Удалить пост безвозвратно?')">
+          🗑️ Удалить
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span>✅</span>
+    <p>Нет постов, ожидающих проверки. Всё чисто!</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Вкладка: Пользователи -->
+<div class="admin-panel" id="tab-users" style="display:none">
+  <h2>👥 Пользователи ({{ users|length }})</h2>
+  <div class="users-table-wrap">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Имя</th>
+          <th>Роль</th>
+          <th>Дата регистрации</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr class="{% if u.role == 'admin' %}row-admin{% endif %}">
+          <td>{{ u.id }}</td>
+          <td>
+            {{ '+' if u.role == 'admin' else '-' }}
+            {{ u.username }}
+          </td>
+          <td>
+            <span class="badge {{ 'badge-admin' if u.role == 'admin' else 'badge-user' }}">
+              {{ u.role }}
+            </span>
+          </td>
+          <td>{{ u.created_at[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

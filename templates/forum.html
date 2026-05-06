@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Форум — Транссервис{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>Форум</h1>
+  <p>Выберите раздел для просмотра и участия в обсуждениях</p>
+</div>
+
+<div class="forum-categories">
+  {% for cat in categories %}
+  <div class="forum-cat-block">
+    <a href="{{ url_for('category', cat_id=cat.id) }}" class="forum-cat-header">
+      <span class="fcat-icon">{{ cat.icon }}</span>
+      <div class="fcat-info">
+        <h2>{{ cat.name }}</h2>
+        <p>{{ cat.description }}</p>
+      </div>
+      <div class="fcat-stats">
+        <div class="fstat">
+          <strong>{{ cat.topic_count }}</strong>
+          <small>тем</small>
+        </div>
+        <div class="fstat">
+          <strong>{{ cat.post_count }}</strong>
+          <small>сообщений</small>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span>📭</span>
+    <p>Разделы ещё не созданы.</p>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

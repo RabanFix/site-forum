@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — Транссервис{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-icon">✨</div>
+    <h1>Регистрация</h1>
+    <p class="auth-sub">Присоединяйтесь к сообществу Транссервис</p>
+
+    <form method="POST">
+      <div class="form-group">
+        <label for="username">Имя пользователя</label>
+        <input type="text" id="username" name="username"
+               class="form-control" required autofocus
+               placeholder="Минимум 3 символа"
+               minlength="3" maxlength="50">
+      </div>
+      <div class="form-group">
+        <label for="password">Пароль</label>
+        <input type="password" id="password" name="password"
+               class="form-control" required
+               placeholder="Минимум 6 символов"
+               minlength="6">
+      </div>
+      <div class="form-group">
+        <label for="confirm">Повторите пароль</label>
+        <input type="password" id="confirm" name="confirm"
+               class="form-control" required
+               placeholder="Повторите пароль">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">
+        Зарегистрироваться
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      Уже есть аккаунт?
+      <a href="{{ url_for('login') }}">Войти</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Новая тема — {{ category.name }}{% endblock %}
+
+{% block content %}
+
+<nav class="breadcrumb">
+  <a href="{{ url_for('index') }}">Главная</a> /
+  <a href="{{ url_for('forum') }}">Форум</a> /
+  <a href="{{ url_for('category', cat_id=category.id) }}">{{ category.name }}</a> /
+  <span>Новая тема</span>
+</nav>
+
+<div class="page-header">
+  <h1>✏️ Создать тему</h1>
+  <p>Раздел: <strong>{{ category.icon }} {{ category.name }}</strong></p>
+</div>
+
+<div class="form-section">
+  <form method="POST" id="new-topic-form">
+    <div class="form-group">
+      <label for="title">Заголовок темы</label>
+      <input type="text" id="title" name="title"
+             class="form-control"
+             placeholder="Введите чёткий и информативный заголовок"
+             required minlength="5" maxlength="200">
+    </div>
+
+    <div class="form-group">
+      <label for="content">Текст сообщения</label>
+      <textarea id="content" name="content"
+                class="form-control reply-textarea"
+                placeholder="Подробно опишите вашу тему..."
+                required minlength="10" rows="10"></textarea>
+    </div>
+
+    <div class="ai-notice">
+      🛡️ <strong>ИИ-модерация:</strong>
+      Ваше сообщение будет автоматически проверено перед публикацией.
+      Сообщения, нарушающие правила, будут заблокированы. А также, вы получите предупреждение!
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary btn-lg">
+        🚀 Опубликовать тему
+      </button>
+      <a href="{{ url_for('category', cat_id=category.id) }}"
+         class="btn btn-outline btn-lg">Отмена</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

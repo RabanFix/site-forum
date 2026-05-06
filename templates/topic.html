@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ topic.title }} — Транссервис{% endblock %}
+
+{% block content %}
+
+<!-- Хлебные крошки -->
+<nav class="breadcrumb">
+  <a href="{{ url_for('index') }}">Главная</a> /
+  <a href="{{ url_for('forum') }}">Форум</a> /
+  <a href="{{ url_for('category', cat_id=topic.category_id) }}">
+    {{ topic.category_name }}
+  </a> /
+  <span>{{ topic.title[:40] }}{% if topic.title|length > 40 %}...{% endif %}</span>
+</nav>
+
+<!-- Заголовок темы -->
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>
+      {% if topic.is_pinned %}📌 {% endif %}
+      {% if topic.is_closed %}🔒 {% endif %}
+      {{ topic.title }}
+    </h1>
+    <div class="topic-info-bar">
+      <span>👤 {{ topic.username }}</span>
+      <span>📅 {{ topic.created_at[:10] }}</span>
+      <span>👁️ {{ topic.views }} просмотров</span>
+      {% if topic.is_closed %}
+        <span class="badge badge-closed">Тема закрыта</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ИИ-инструменты -->
+  <div class="ai-tools">
+    <button class="btn btn-outline btn-sm" id="btn-summary"
+            data-topic="{{ topic.id }}">
+      📝 Резюме ИИ
+    </button>
+    {% if current_user %}
+    <button class="btn btn-outline btn-sm" id="btn-suggest"
+            data-topic="{{ topic.id }}">
+      💡 Подсказка
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ИИ-панель (резюме / подсказка) -->
+<div class="ai-result-panel" id="ai-result-panel" style="display:none">
+  <div class="ai-result-header">
+    <span>🤖 ИИ-ответ</span>
+    <button onclick="document.getElementById('ai-result-panel').style.display='none'">×</button>
+  </div>
+  <div class="ai-result-body" id="ai-result-body">Загрузка...</div>
+</div>
+
+<!-- Посты -->
+<div class="posts-list" id="posts-list">
+  {% for post in posts %}
+  <div class="post-card {% if loop.first %}post-first{% endif %}" id="post-{{ post.id }}">
+    <!-- Аватар / автор -->
+    <div class="post-author">
+      <div class="post-avatar">
+        {{ '👑' if post.role == 'admin' else '👤' }}
+      </div>
+      <strong>{{ post.username }}</strong>
+      {% if post.role == 'admin' %}
+        <span class="badge badge-admin">Админ</span>
+      {% endif %}
+      <small>{{ post.created_at[:16].replace('T',' ') }}</small>
+    </div>
+
+    <!-- Тело поста -->
+    <div class="post-body">
+      <div class="post-content">{{ post.content }}</div>
+
+      <!-- Метка ИИ (если есть) -->
+      {% if post.toxicity_score and post.toxicity_score > 0.2 %}
+      <div class="ai-tag ai-tag-warning">
+        ⚠️ Оценка ИИ: {{ "%.0f"|format(post.toxicity_score * 100) }}% токсичности
+      </div>
+      {% endif %}
+
+      <!-- Действия -->
+      <div class="post-actions">
+        <button class="like-btn {% if post.like_count > 0 %}liked{% endif %}"
+                data-post="{{ post.id }}">
+          ❤️ <span class="like-count">{{ post.like_count }}</span>
+        </button>
+
+        {% if current_user and current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_delete_post', post_id=post.id) }}"
+           class="btn btn-danger btn-xs"
+           onclick="return confirm('Удалить пост?')">🗑️</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span>💬</span>
+    <p>Сообщений пока нет. Будьте первым!</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% for p in range(1, total_pages + 1) %}
+  <a href="{{ url_for('topic', topic_id=topic.id, page=p) }}"
+     class="page-btn {% if p == page %}active{% endif %}">{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Форма ответа -->
+{% if current_user %}
+  {% if not topic.is_closed %}
+  <div class="reply-form-section">
+    <h3>✏️ Ваш ответ</h3>
+
+    <!-- Подсказка ИИ -->
+    <div class="ai-suggestion" id="ai-suggestion" style="display:none">
+      <div class="suggestion-header">💡 Подсказка ИИ:</div>
+      <div id="suggestion-text"></div>
+      <button class="btn btn-sm btn-outline" id="use-suggestion">
+        Вставить в форму
+      </button>
+    </div>
+
+    <form method="POST" id="reply-form">
+      <textarea name="content" id="reply-content"
+                class="reply-textarea"
+                placeholder="Напишите ваш ответ здесь..."
+                required minlength="3" rows="6"></textarea>
+      <div class="reply-actions">
+        <button type="submit" class="btn btn-primary">
+          📤 Отправить
+        </button>
+        <span class="reply-hint">
+          🛡️ Сообщение пройдёт автоматическую ИИ-проверку
+        </span>
+      </div>
+    </form>
+  </div>
+  {% else %}
+  <div class="closed-notice">
+    🔒 Тема закрыта — новые сообщения не принимаются.
+  </div>
+  {% endif %}
+{% else %}
+<div class="login-notice">
+  <a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить сообщение.
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/topic.js') }}"></script>
+{% endblock %}

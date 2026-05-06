@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ category.name }} — Транссервис{% endblock %}
+
+{% block content %}
+
+<!-- Хлебные крошки -->
+<nav class="breadcrumb">
+  <a href="{{ url_for('index') }}">Главная</a> /
+  <a href="{{ url_for('forum') }}">Форум</a> /
+  <span>{{ category.name }}</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>{{ category.icon }} {{ category.name }}</h1>
+    <p>{{ category.description }}</p>
+  </div>
+  {% if current_user %}
+  <a href="{{ url_for('new_topic', cat_id=category.id) }}"
+     class="btn btn-primary">
+    ✏️ Новая тема
+  </a>
+  {% endif %}
+</div>
+
+<!-- Список тем -->
+<div class="topics-list">
+  {% for t in topics %}
+  <a href="{{ url_for('topic', topic_id=t.id) }}"
+     class="topic-row {% if t.is_pinned %}topic-pinned{% endif %}">
+    <div class="topic-icon">
+      {% if t.is_pinned %}📌
+      {% elif t.is_closed %}🔒
+      {% else %}💬{% endif %}
+    </div>
+    <div class="topic-main">
+      <h3 class="topic-title">
+        {{ t.title }}
+        {% if t.is_closed %}<span class="badge badge-closed">Закрыта</span>{% endif %}
+        {% if t.is_pinned %}<span class="badge badge-pinned">Закреплена</span>{% endif %}
+      </h3>
+      <div class="topic-meta">
+        <span>👤 {{ t.username }}</span>
+        <span>📅 {{ t.created_at[:10] }}</span>
+      </div>
+    </div>
+    <div class="topic-stats">
+      <div class="tstat">
+        <strong>{{ t.reply_count }}</strong>
+        <small>ответов</small>
+      </div>
+      <div class="tstat">
+        <strong>{{ t.views }}</strong>
+        <small>просмотров</small>
+      </div>
+    </div>
+    <div class="topic-last">
+      {% if t.last_post_at %}
+        <small>Последний: {{ t.last_post_at[:16].replace('T',' ') }}</small>
+      {% endif %}
+    </div>
+  </a>
+  {% else %}
+  <div class="empty-state">
+    <span>📭</span>
+    <p>Тем пока нет.
+      {% if current_user %}
+        <a href="{{ url_for('new_topic', cat_id=category.id) }}">Создайте первую!</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Войдите</a>, чтобы создать тему.
+      {% endif %}
+    </p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% for p in range(1, total_pages + 1) %}
+  <a href="{{ url_for('category', cat_id=category.id, page=p) }}"
+     class="page-btn {% if p == page %}active{% endif %}">{{ p }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

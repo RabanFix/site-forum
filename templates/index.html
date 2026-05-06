@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Транссервис — Главная{% endblock %}
+
+{% block content %}
+
+<!-- ══════════════ HERO ══════════════ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-content">
+    <h1 class="hero-title">
+      Форум<br>
+      <span class="gradient-text"> ООО «Транссервис»</span>
+    </h1>
+    <p class="hero-subtitle">
+      Профессиональное сообщество специалистов в области транспорта и логистики.
+      Умная модерация, ИИ-ассистент и живое общение.
+    </p>
+    <div class="hero-actions">
+      {% if current_user %}
+        <a href="{{ url_for('forum') }}" class="btn btn-primary btn-lg">
+          Перейти на форум
+        </a>
+      {% else %}
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+          Присоединиться
+        </a>
+        <a href="{{ url_for('forum') }}" class="btn btn-outline btn-lg">
+          Читать форум
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- Счётчики -->
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <strong>{{ stats.users }}</strong>
+        <span>Участников</span>
+      </div>
+      <div class="hero-stat">
+        <strong>{{ stats.topics }}</strong>
+        <span>Тем</span>
+      </div>
+      <div class="hero-stat">
+        <strong>{{ stats.posts }}</strong>
+        <span>Сообщений</span>
+      </div>
+    </div>
+  </div>
+
+
+<!-- ══════════════ ВОЗМОЖНОСТИ ══════════════ -->
+<section class="section features-section">
+  <div class="section-header">
+    <h2>Почему наш форум?</h2>
+    <p>Современные технологии для профессионального сообщества</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <h3>ИИ-Модерация</h3>
+      <p>
+        Каждое сообщение проходит автоматическую проверку.
+        Искусственный интеллект анализирует токсичность
+        и блокирует нежелательный контент в реальном времени.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <h3>ИИ-Ассистент</h3>
+      <p>
+        Круглосуточный помощник отвечает на вопросы по логистике,
+        транспортному законодательству и работе форума.
+        Доступен через чат в правом нижнем углу.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <h3>Резюме тем</h3>
+      <p>
+        ИИ автоматически формирует краткое изложение длинных
+        обсуждений, помогая быстро войти в курс дела.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <h3>Подсказки ответов</h3>
+      <p>
+        Не знаете, что написать? ИИ предложит вариант ответа
+        на основе контекста обсуждения.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <h3>Отраслевая экспертиза</h3>
+      <p>
+        Специализированные разделы по всем аспектам
+        транспортной отрасли: от грузоперевозок до ТО.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <h3>Панель модератора</h3>
+      <p>
+        Удобная административная панель с полной статистикой,
+        управлением пользователями и ручной модерацией.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ КАТЕГОРИИ ══════════════ -->
+<section class="section categories-section">
+  <div class="section-header">
+    <h2>Разделы форума</h2>
+    <p>Найдите обсуждения по вашей теме</p>
+  </div>
+
+  <div class="categories-grid">
+    {% for cat in categories %}
+    <a href="{{ url_for('category', cat_id=cat.id) }}" class="category-card">
+      <div class="cat-icon">{{ cat.icon }}</div>
+      <div class="cat-info">
+        <h3>{{ cat.name }}</h3>
+        <p>{{ cat.description }}</p>
+        <div class="cat-meta">
+          <span>{{ cat.topic_count }} тем</span>
+          <span>{{ cat.post_count }} сообщений</span>
+        </div>
+      </div>
+      <div class="cat-arrow">→</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="section-action">
+    <a href="{{ url_for('forum') }}" class="btn btn-primary">
+      Все разделы форума →
+    </a>
+  </div>
+</section>
+
+<!-- ══════════════ КАК ЭТО РАБОТАЕТ ══════════════ -->
+<section class="section how-section">
+  <div class="section-header">
+    <h2>Как работает ИИ-модерация</h2>
+    <p>Три шага к безопасному общению</p>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>Пользователь пишет</h3>
+        <p>Сообщение отправляется на сервер вместе с контекстом темы.</p>
+      </div>
+    </div>
+    <div class="step-arrow">→</div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>ИИ анализирует</h3>
+        <p>Нейросеть проверяет текст на токсичность, спам и нарушения правил.</p>
+      </div>
+    </div>
+    <div class="step-arrow">→</div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>Публикация или блокировка</h3>
+        <p>Чистые сообщения публикуются мгновенно. Нарушения — блокируются.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
