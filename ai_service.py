@@ -401,21 +401,28 @@ def _is_toxic_local(text: str) -> bool:
     """
     Многоуровневая проверка:
     1. Нормализация к кириллице + regex-корни
-    2. Нормализация к латинице + regex-корни
+    2. Латинские паттерны — только во фрагментах с латиницей (транслит/англ. мат)
     3. Точное совпадение токенов
     """
     norm_cyr = _normalize_cyr(text)
-    norm_lat = _normalize_lat(text)
 
     # Проверка кириллических паттернов
     for pattern in _COMPILED_CYR:
         if pattern.search(norm_cyr):
             return True
 
-    # Проверка латинских паттернов (транслит и английский мат)
-    for pattern in _COMPILED_LAT:
-        if pattern.search(norm_lat):
-            return True
+    # Латинские паттерны нельзя применять ко всему тексту: при транслите кириллицы
+    # «улучшить» → «uluchshit», «завершить» → «zavershit» — ложные срабатывания на «shit».
+    latin_parts = [
+        token
+        for token in _SEPARATORS_RE.split(text.lower())
+        if token and re.search(r"[a-zA-Z]", token)
+    ]
+    if latin_parts:
+        norm_lat = _normalize_lat("".join(latin_parts))
+        for pattern in _COMPILED_LAT:
+            if pattern.search(norm_lat):
+                return True
 
     # Точное совпадение токенов (слов) после кириллической нормализации
     tokens = re.split(r"\s+", _normalize_cyr(text.lower()))
