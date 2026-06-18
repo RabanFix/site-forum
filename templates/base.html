@@ -20,10 +20,10 @@
 
     <!-- Логотип -->
     <a href="{{ url_for('index') }}" class="logo">
-      <div class="logo-icon">🚛</div>
+      <span class="logo-icon" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;">🚛</span>
       <div class="logo-text">
         <span class="logo-name">Транссервис</span>
-        <span class="logo-sub">Форум &amp; ИИ-ассистент</span>
+        <span class="logo-sub">Портал заказчиков</span>
       </div>
     </a>
 
@@ -40,17 +40,31 @@
       {% if current_user and current_user.role == 'admin' %}
       <a href="{{ url_for('admin') }}"
          class="nav-link nav-admin {% if request.endpoint == 'admin' %}active{% endif %}">
-        Админ-панель
+        Кабинет руководителя
       </a>
       {% endif %}
     </nav>
 
+    <!-- Поиск -->
+    <form class="header-search" action="{{ url_for('search') }}" method="get" role="search">
+      <input class="header-search-input" type="search" name="q"
+             placeholder="Поиск по форуму…"
+             value="{{ request.args.get('q', '') }}"
+             maxlength="100" autocomplete="off">
+      <button class="header-search-btn" type="submit" aria-label="Найти">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2">
+          <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+        </svg>
+      </button>
+    </form>
+
     <!-- Пользователь -->
     <div class="user-panel">
       {% if current_user %}
-        <span class="username-badge">
-          {{ '' if current_user.role == 'admin' else '👤' }}
+        <span class="username-badge {% if current_user.role == 'admin' %}badge-manager{% endif %}">
+          {% if current_user.role == 'admin' %}👔{% else %}👤{% endif %}
           {{ current_user.username }}
+          <small class="role-label">{{ 'Руководитель' if current_user.role == 'admin' else 'Заказчик' }}</small>
         </span>
         <a href="{{ url_for('logout') }}" class="btn btn-outline btn-sm">Выйти</a>
       {% else %}
@@ -71,12 +85,12 @@
     <a href="{{ url_for('forum') }}">Форум</a>
     {% if current_user %}
       {% if current_user.role == 'admin' %}
-      <a href="{{ url_for('admin') }}">Админ-панель</a>
+      <a href="{{ url_for('admin') }}">Кабинет руководителя</a>
       {% endif %}
       <a href="{{ url_for('logout') }}">Выйти</a>
     {% else %}
       <a href="{{ url_for('login') }}">Войти</a>
-      <a href="{{ url_for('register') }}">Регистрация</a>
+      <a href="{{ url_for('register') }}">Регистрация как Заказчик</a>
     {% endif %}
   </div>
 </header>
@@ -122,20 +136,37 @@
         <span class="ai-avatar">🤖</span>
         <div>
           <strong>ИИ-Ассистент</strong>
-          <small>Транссервис</small>
+          <small>Транссервис — помощник заказчика</small>
         </div>
       </div>
       <button class="ai-close" id="ai-close">×</button>
     </div>
 
     <div class="ai-messages" id="ai-messages">
-      <div class="ai-msg ai-msg--bot">
-        <span class="msg-avatar">ИИ-Бот</span>
-        <div class="msg-bubble">
-          Здравствуйте! Я ИИ-ассистент форума <strong>Транссервис</strong>.
-          Задайте любой вопрос о грузоперевозках, логистике или работе форума.
+      <div class="ai-msg ai-msg--bot" id="ai-greeting-msg">
+        <span class="msg-avatar" id="ai-bot-avatar">🤖</span>
+        <div class="msg-bubble" id="ai-greeting-bubble">
+          Здравствуйте! Я ИИ-ассистент портала <strong>Транссервис</strong>.
+          Помогу разобраться с вашим заказом, документами или услугами компании.
         </div>
       </div>
+    </div>
+
+    <div class="ai-suggestions" id="ai-suggestions">
+      <button class="ai-chip ai-chip--fact" id="ai-fact-btn" title="Случайный факт о логистике">💡 Факт</button>
+      <div class="ai-chip-divider"></div>
+      <button class="ai-chip" data-q="Как узнать статус моего заказа?">📦 Статус заказа</button>
+      <button class="ai-chip" data-q="Как оформить заявку на перевозку?">📝 Оформить заявку</button>
+      <button class="ai-chip" data-q="Какие документы нужны для грузоперевозки?">📄 Документы</button>
+      <button class="ai-chip" data-q="Как рассчитать стоимость перевозки груза?">💰 Стоимость</button>
+      <button class="ai-chip" data-q="Что делать при задержке или утере груза?">⚠️ Задержка груза</button>
+      <button class="ai-chip" data-q="Какие виды транспорта используются для грузоперевозок?">🚛 Виды транспорта</button>
+      <button class="ai-chip" data-q="Как отследить груз в пути?">📍 Отслеживание</button>
+      <button class="ai-chip" data-q="Что такое CMR-накладная и как её оформить?">📋 CMR</button>
+      <button class="ai-chip" data-q="Какие сроки доставки груза по России?">⏱️ Сроки доставки</button>
+      <button class="ai-chip" data-q="Как правильно упаковать хрупкий груз?">📦 Упаковка</button>
+      <button class="ai-chip" data-q="Какие требования к перевозке опасных грузов (ADR)?">☢️ ADR</button>
+      <button class="ai-chip" data-q="Что такое мультимодальные перевозки?">🔗 Мультимодал</button>
     </div>
 
     <div class="ai-input-area">
@@ -157,7 +188,7 @@
   <div class="container footer-inner">
     <div class="footer-brand">
       <span class="footer-logo">Транссервис</span>
-      <p>Форум с ИИ-модерацией<br>© {{ 2024 }} ООО «Транссервис»</p>
+      <p>Портал для заказчиков<br>© {{ 2024 }} ООО «Транссервис»</p>
     </div>
     <div class="footer-links">
       <strong>Разделы</strong>
@@ -165,11 +196,11 @@
       <a href="{{ url_for('forum') }}">Форум</a>
     </div>
     <div class="footer-ai">
-      <strong>ИИ-функции</strong>
-      <span>Автомодерация постов</span>
-      <span>Чат-ассистент</span>
+      <strong>Возможности</strong>
+      <span>Общение с руководством</span>
+      <span>ИИ-ассистент заказчика</span>
+      <span>Автомодерация сообщений</span>
       <span>Резюме тем</span>
-      <span>Подсказки ответов</span>
     </div>
   </div>
 </footer>

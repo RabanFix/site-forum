@@ -6,7 +6,7 @@
   <div class="auth-card">
     <div class="auth-icon">🚛</div>
     <h1>Вход в аккаунт</h1>
-    <p class="auth-sub">Форум ООО «Транссервис»</p>
+    <p class="auth-sub">Портал заказчиков ООО «Транссервис»</p>
 
     <form method="POST">
       <div class="form-group">
@@ -19,7 +19,8 @@
         <label for="password">Пароль</label>
         <input type="password" id="password" name="password"
                class="form-control" required
-               placeholder="Введите пароль">
+               placeholder="Введите пароль"
+               autocomplete="current-password">
       </div>
       <button type="submit" class="btn btn-primary btn-block btn-lg">
         Войти
@@ -28,13 +29,13 @@
 
     <div class="auth-footer">
       Нет аккаунта?
-      <a href="{{ url_for('register') }}">Зарегистрироваться</a>
+      <a href="{{ url_for('register') }}">Зарегистрироваться как Заказчик</a>
     </div>
 
     <div class="demo-creds">
       <strong>Демо-доступ:</strong><br>
-      Пользователь: <code>ivanov</code> / <code>pass123</code><br>
-      Администратор: <code>admin</code> / <code>admin123</code>
+      Заказчик: <code>ivanov</code> / <code>pass123</code><br>
+      Руководитель: <code>admin</code> / <code>admin123</code>
     </div>
   </div>
 </div>

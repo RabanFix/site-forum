@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Поиск — Транссервис{% endblock %}
+
+{% block content %}
+<div class="search-page">
+
+  <!-- Шапка поиска -->
+  <div class="search-hero">
+    <h1>🔍 Поиск по форуму</h1>
+    <form class="search-form-main" action="{{ url_for('search') }}" method="get">
+      <div class="search-input-wrap">
+        <input class="search-input-main" type="search" name="q"
+               value="{{ q }}" placeholder="Введите ключевые слова…"
+               maxlength="100" autocomplete="off" autofocus>
+        <button class="btn btn-primary" type="submit">Найти</button>
+      </div>
+    </form>
+  </div>
+
+  {% if q %}
+    {% set total = topic_results|length + post_results|length %}
+
+    <div class="search-meta">
+      {% if total > 0 %}
+        Найдено <strong>{{ total }}</strong> результат{{ 'а' if total in [2,3,4] else ('ов' if total >= 5 else '') }}
+        по запросу <em>«{{ q }}»</em>
+      {% else %}
+        <span class="search-none">
+          Ничего не найдено по запросу <em>«{{ q }}»</em>.
+          Попробуйте другие слова или проверьте написание.
+        </span>
+      {% endif %}
+    </div>
+
+    {% if topic_results %}
+    <section class="search-section">
+      <h2 class="search-section-title">
+        📌 Темы <span class="search-count">{{ topic_results|length }}</span>
+      </h2>
+      <div class="search-results">
+        {% for t in topic_results %}
+        <a class="search-card search-card--topic" href="{{ url_for('topic', topic_id=t.id) }}">
+          <div class="search-card-icon">📌</div>
+          <div class="search-card-body">
+            <div class="search-card-title">
+              {{ highlight(t.title, q)|safe }}
+            </div>
+            <div class="search-card-meta">
+              <span class="search-cat">{{ t.cat_icon }} {{ t.cat_name }}</span>
+              <span>·</span>
+              <span>{{ t.username }}</span>
+              <span>·</span>
+              <span>{{ t.created_at[:10] }}</span>
+            </div>
+          </div>
+          <div class="search-card-arrow">›</div>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if post_results %}
+    <section class="search-section">
+      <h2 class="search-section-title">
+        💬 Сообщения <span class="search-count">{{ post_results|length }}</span>
+      </h2>
+      <div class="search-results">
+        {% for p in post_results %}
+        <a class="search-card search-card--post"
+           href="{{ url_for('topic', topic_id=p.topic_id) }}#post-{{ p.id }}">
+          <div class="search-card-icon">💬</div>
+          <div class="search-card-body">
+            <div class="search-card-topic">
+              В теме: <strong>{{ p.topic_title }}</strong>
+            </div>
+            <div class="search-card-snippet">
+              {{ highlight(p.content, q)|safe }}
+            </div>
+            <div class="search-card-meta">
+              <span class="search-cat">{{ p.cat_name }}</span>
+              <span>·</span>
+              <span>{{ p.username }}</span>
+              <span>·</span>
+              <span>{{ p.created_at[:10] }}</span>
+            </div>
+          </div>
+          <div class="search-card-arrow">›</div>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+  {% else %}
+    <div class="search-empty-state">
+      <div class="search-empty-icon">🔍</div>
+      <p>Введите слово или фразу для поиска по темам и сообщениям форума.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

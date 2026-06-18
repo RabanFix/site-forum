@@ -4,9 +4,9 @@
 {% block content %}
 <div class="auth-container">
   <div class="auth-card">
-    <div class="auth-icon">✨</div>
-    <h1>Регистрация</h1>
-    <p class="auth-sub">Присоединяйтесь к сообществу Транссервис</p>
+    <div class="auth-icon">👤</div>
+    <h1>Регистрация заказчика</h1>
+    <p class="auth-sub">Получите доступ к информации от руководителей ООО «Транссервис»</p>
 
     <form method="POST">
       <div class="form-group">
@@ -21,13 +21,15 @@
         <input type="password" id="password" name="password"
                class="form-control" required
                placeholder="Минимум 6 символов"
-               minlength="6">
+               minlength="6"
+               autocomplete="new-password">
       </div>
       <div class="form-group">
         <label for="confirm">Повторите пароль</label>
         <input type="password" id="confirm" name="confirm"
                class="form-control" required
-               placeholder="Повторите пароль">
+               placeholder="Повторите пароль"
+               autocomplete="new-password">
       </div>
       <button type="submit" class="btn btn-primary btn-block btn-lg">
         Зарегистрироваться

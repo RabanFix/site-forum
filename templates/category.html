@@ -38,9 +38,13 @@
         {{ t.title }}
         {% if t.is_closed %}<span class="badge badge-closed">Закрыта</span>{% endif %}
         {% if t.is_pinned %}<span class="badge badge-pinned">Закреплена</span>{% endif %}
+        {% if t.attachment_filename %}<span class="badge badge-attachment">📎 Файл</span>{% endif %}
       </h3>
       <div class="topic-meta">
         <span>👤 {{ t.username }}</span>
+        {% if t.addressed_to_username %}
+          <span class="topic-addressee">→ {{ t.addressed_to_username }}</span>
+        {% endif %}
         <span>📅 {{ t.created_at[:10] }}</span>
       </div>
     </div>

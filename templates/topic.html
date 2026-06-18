@@ -23,15 +23,31 @@
     </h1>
     <div class="topic-info-bar">
       <span>👤 {{ topic.username }}</span>
+      {% if topic.addressed_to_username %}
+        <span class="topic-addressee-badge">→ {{ topic.addressed_to_username }}</span>
+      {% endif %}
       <span>📅 {{ topic.created_at[:10] }}</span>
       <span>👁️ {{ topic.views }} просмотров</span>
       {% if topic.is_closed %}
         <span class="badge badge-closed">Тема закрыта</span>
       {% endif %}
+      {% if topic.is_reported %}
+        <span class="badge badge-danger-soft">🚨 На проверке</span>
+      {% endif %}
     </div>
+
+    <!-- Вложение к теме -->
+    {% if topic.attachment_path and topic.attachment_filename %}
+    <div class="topic-attachment">
+      <a href="{{ url_for('static', filename=topic.attachment_path) }}"
+         target="_blank" class="attachment-link">
+        📎 {{ topic.attachment_filename }}
+      </a>
+    </div>
+    {% endif %}
   </div>
 
-  <!-- ИИ-инструменты -->
+  <!-- ИИ-инструменты + жалоба -->
   <div class="ai-tools">
     <button class="btn btn-outline btn-sm" id="btn-summary"
             data-topic="{{ topic.id }}">
@@ -42,9 +58,18 @@
             data-topic="{{ topic.id }}">
       💡 Подсказка
     </button>
+    <button class="btn btn-outline btn-sm report-btn"
+            id="btn-report"
+            data-topic="{{ topic.id }}"
+            title="Пожаловаться на тему">
+      🚨 Жалоба
+    </button>
     {% endif %}
   </div>
 </div>
+
+<!-- Уведомление о жалобе -->
+<div id="report-notice" style="display:none" class="ai-notice report-notice"></div>
 
 <!-- ИИ-панель (резюме / подсказка) -->
 <div class="ai-result-panel" id="ai-result-panel" style="display:none">
@@ -66,7 +91,7 @@
       </div>
       <strong>{{ post.username }}</strong>
       {% if post.role == 'admin' %}
-        <span class="badge badge-admin">Админ</span>
+        <span class="badge badge-admin">Руководитель</span>
       {% endif %}
       <small>{{ post.created_at[:16].replace('T',' ') }}</small>
     </div>

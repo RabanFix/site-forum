@@ -3,7 +3,7 @@
 Flask-маршруты, сессии, логика представлений.
 """
 import uuid
-import re
+import os
 from datetime import datetime
 from functools import wraps
 
@@ -11,6 +11,7 @@ from flask import (
     Flask, render_template, request, redirect,
     url_for, session, jsonify, flash, abort
 )
+from werkzeug.utils import secure_filename
 
 from config import Config
 from models import (
@@ -24,47 +25,44 @@ from models import (
     toggle_like,
     save_chat_message, get_chat_history,
     get_stats,
-
-    # NEW:
     register_user_violation,
     set_user_restriction, clear_user_restriction,
     ban_user, unban_user, delete_user,
+    get_all_topics, report_topic, dismiss_topic_report, get_reported_topics,
+    get_user_toxicity_stats,
+    search_forum, admin_clear_own_restrictions,
 )
 from ai_service import (
     moderate_content, chat_with_assistant,
-    generate_topic_summary, suggest_reply
+    generate_topic_summary, suggest_reply,
+    is_toxic_local_export as is_toxic_local,
 )
-
-# ─── Локальный фильтр (RU+EN) ───────────────────────────────────────────────
-_BAD_WORDS = [
-    # RU
-    "пиздец", "хуй", "ебать", "блять", "сука", "пизда", "хуйня",
-    "ёбаный", "ёб", "еба", "пздц", "пизд", "хуе", "хую", "бля",
-    "дебил", "идиот", "мудак", "пидор", "залупа", "блядь", "шлюха",
-    "мразь", "урод", "нахуй", "нахуя", "похуй", "долбоёб", "долбоеб",
-    # EN (не добавляйте короткое "ass", иначе будет много ложных срабатываний)
-    "fuck", "fucking", "shit", "bitch", "asshole", "bastard", "motherfucker",
-    "moron", "retard", "idiot",
-]
-
-def _normalize_for_filter(text: str) -> str:
-    t = text.lower()
-    t = t.replace("@", "a").replace("$", "s").replace("0", "o").replace("1", "i").replace("3", "e")
-    t = re.sub(r"[\s\*\.\-_!@#$%^&()0-9\[\]{}<>/\\|+=~`'\";,?:]", "", t)
-    return t
-
-def is_toxic_local(text: str) -> bool:
-    cleaned = _normalize_for_filter(text)
-    for word in _BAD_WORDS:
-        w = _normalize_for_filter(word)
-        if w and w in cleaned:
-            return True
-    return False
 
 # ─── Инициализация ───────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
 app.config["DEBUG"] = Config.DEBUG
+app.config["MAX_CONTENT_LENGTH"] = Config.MAX_UPLOAD_MB * 1024 * 1024
+
+os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+
+
+def _allowed_file(filename: str) -> bool:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return ext in Config.ALLOWED_EXTENSIONS
+
+
+def _save_upload(file) -> tuple[str, str] | None:
+    """Сохраняет файл в UPLOAD_FOLDER. Возвращает (path, original_name) или None."""
+    if not file or not file.filename:
+        return None
+    if not _allowed_file(file.filename):
+        return None
+    orig_name = secure_filename(file.filename)
+    unique_name = f"{uuid.uuid4().hex}_{orig_name}"
+    dest = os.path.join(Config.UPLOAD_FOLDER, unique_name)
+    file.save(dest)
+    return f"uploads/{unique_name}", orig_name
 
 with app.app_context():
     init_db()
@@ -82,10 +80,15 @@ def user_access_state(user_id: int) -> tuple[bool, str]:
     """
     True = можно писать/пользоваться форумом.
     False = нельзя + текст причины.
+    Администраторы имеют полный иммунитет ко всем ограничениям.
     """
     u = get_user_by_id(user_id)
     if not u:
         return False, "Пользователь не найден."
+
+    # Иммунитет администратора
+    if u.get("role") == "admin":
+        return True, ""
 
     # Бан
     if int(u.get("is_banned") or 0) == 1:
@@ -189,8 +192,8 @@ def login():
         user = verify_user(username, password)
 
         if user:
-            # запрет входа забаненным
-            if int(user.get("is_banned") or 0) == 1:
+            # запрет входа забаненным (администраторы входят всегда)
+            if user.get("role") != "admin" and int(user.get("is_banned") or 0) == 1:
                 ok, msg = user_access_state(user["id"])
                 flash(msg or "Доступ заблокирован.", "danger")
                 return render_template("login.html")
@@ -240,8 +243,15 @@ def new_topic(cat_id):
     if not cat:
         abort(404)
 
+    # "Объявления руководства" — без адресации и вложения
+    is_announcements = (cat["name"] == "Объявления руководства")
+    current_user_obj = get_user_by_id(session["user_id"])
+    is_admin = current_user_obj and current_user_obj.get("role") == "admin"
+
+    all_users = [] if is_announcements else get_all_users()
+
     if request.method == "POST":
-        title = request.form.get("title", "").strip()
+        title   = request.form.get("title", "").strip()
         content = request.form.get("content", "").strip()
 
         if not title or not content:
@@ -260,7 +270,43 @@ def new_topic(cat_id):
                 mod_result["reason"] = "Сообщение содержит недопустимую лексику/оскорбления."
 
             if mod_result["approved"]:
-                topic_id = create_topic(cat_id, session["user_id"], title)
+                # Адресат (только для не-объявлений)
+                addressed_to = None
+                if not is_announcements:
+                    try:
+                        addressed_to = int(request.form.get("addressed_to") or 0) or None
+                    except (ValueError, TypeError):
+                        addressed_to = None
+
+                # Закрепление (только администратор)
+                pin = 1 if (is_admin and request.form.get("is_pinned") == "1") else 0
+
+                # Загрузка файла
+                att_path = att_name = None
+                if not is_announcements:
+                    upload = request.files.get("attachment")
+                    if upload and upload.filename:
+                        if not _allowed_file(upload.filename):
+                            flash(
+                                f"Недопустимый тип файла. Разрешены: "
+                                f"{', '.join(sorted(Config.ALLOWED_EXTENSIONS))}.",
+                                "danger"
+                            )
+                            return render_template("new_topic.html", category=cat,
+                                                   all_users=all_users,
+                                                   is_announcements=is_announcements,
+                                                   is_admin=is_admin)
+                        result = _save_upload(upload)
+                        if result:
+                            att_path, att_name = result
+
+                topic_id = create_topic(
+                    cat_id, session["user_id"], title,
+                    addressed_to_user_id=addressed_to,
+                    is_pinned=pin,
+                    attachment_path=att_path,
+                    attachment_filename=att_name,
+                )
                 create_post(
                     topic_id, session["user_id"], content,
                     is_moderated=1,
@@ -286,7 +332,11 @@ def new_topic(cat_id):
                 )
             return redirect(url_for("category", cat_id=cat_id))
 
-    return render_template("new_topic.html", category=cat)
+    return render_template("new_topic.html", category=cat,
+                           all_users=all_users,
+                           is_announcements=is_announcements,
+                           is_admin=is_admin,
+                           config_max_mb=Config.MAX_UPLOAD_MB)
 
 # ─── Просмотр темы + ответ ───────────────────────────────────────────────────
 @app.route("/forum/topic/<int:topic_id>", methods=["GET", "POST"])
@@ -295,7 +345,22 @@ def topic(topic_id):
     if not t:
         abort(404)
 
+    # Ограничение доступа для адресованных тем:
+    # тема видна только автору, адресату и администратору.
+    addressed_to_user_id = t.get("addressed_to_user_id")
+    if addressed_to_user_id:
+        current_user_id = session.get("user_id")
+        is_admin = False
+        if current_user_id is not None:
+            is_admin = (get_user_by_id(current_user_id) or {}).get("role") == "admin"
+
+        if not is_admin and current_user_id not in (t.get("user_id"), addressed_to_user_id):
+            abort(403)
+
     increment_topic_views(topic_id)
+
+
+
 
     page = request.args.get("page", 1, type=int)
     posts, total = get_posts_by_topic(topic_id, page)
@@ -381,10 +446,12 @@ def api_chat():
     user_id = session.get("user_id")
 
     history = get_chat_history(chat_session)
-    answer = chat_with_assistant(message, history)
+    answer, is_blocked = chat_with_assistant(message, history, session_id=chat_session)
 
-    save_chat_message(chat_session, "user", message, user_id)
-    save_chat_message(chat_session, "assistant", answer, user_id)
+    # Сохраняем в историю только если запрос не заблокирован guardrails
+    if not is_blocked:
+        save_chat_message(chat_session, "user", message, user_id)
+        save_chat_message(chat_session, "assistant", answer, user_id)
 
     return jsonify({"answer": answer})
 
@@ -420,12 +487,25 @@ def api_summary(topic_id):
     summary = generate_topic_summary(text)
     return jsonify({"summary": summary})
 
-# ─── API для admin.js (у вас он дергается, но роут отсутствовал) ────────────
+# ─── API для admin.js ────────────────────────────────────────────────────────
 @app.route("/api/admin/pending-count")
 @admin_required
 def api_admin_pending_count():
     pending = get_pending_posts()
     return jsonify({"count": len(pending)})
+
+@app.route("/api/admin/toxicity-stats")
+@admin_required
+def api_toxicity_stats():
+    stats = get_user_toxicity_stats()
+    return jsonify(stats)
+
+@app.route("/api/admin/user-toxicity-history/<int:user_id>")
+@admin_required
+def api_user_toxicity_history(user_id):
+    from models import get_user_post_toxicity_history
+    history = get_user_post_toxicity_history(user_id, limit=20)
+    return jsonify(history)
 
 # ─── Админ-панель ────────────────────────────────────────────────────────────
 @app.route("/admin")
@@ -434,7 +514,16 @@ def admin():
     stats = get_stats()
     pending = get_pending_posts()
     users = get_all_users()
-    return render_template("admin.html", stats=stats, pending_posts=pending, users=users)
+    all_topics = get_all_topics()
+    reported = get_reported_topics()
+    return render_template(
+        "admin.html",
+        stats=stats,
+        pending_posts=pending,
+        users=users,
+        all_topics=all_topics,
+        reported_topics=reported,
+    )
 
 @app.route("/admin/moderate/<int:post_id>/<int:decision>")
 @admin_required
@@ -487,6 +576,23 @@ def admin_user_restrict(user_id, minutes):
     flash(f"Пользователь ограничен на {minutes} мин (до {until[:16].replace('T',' ')}).", "warning")
     return redirect(url_for("admin"))
 
+@app.route("/admin/user/<int:user_id>/restrict-custom", methods=["POST"])
+@admin_required
+def admin_user_restrict_custom(user_id):
+    if user_id == session.get("user_id"):
+        flash("Нельзя ограничить самого себя.", "danger")
+        return redirect(url_for("admin"))
+    try:
+        minutes = int(request.form.get("minutes", 0))
+        if minutes <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        flash("Укажите корректное количество минут.", "danger")
+        return redirect(url_for("admin"))
+    until = set_user_restriction(user_id, minutes)
+    flash(f"Пользователь ограничен на {minutes} мин (до {until[:16].replace('T',' ')}).", "warning")
+    return redirect(url_for("admin"))
+
 @app.route("/admin/user/<int:user_id>/unrestrict")
 @admin_required
 def admin_user_unrestrict(user_id):
@@ -500,9 +606,31 @@ def admin_user_ban(user_id):
     if user_id == session.get("user_id"):
         flash("Нельзя забанить самого себя.", "danger")
         return redirect(url_for("admin"))
-    # бан навсегда (можно расширить до бан-до-даты)
     ban_user(user_id, until_iso=None, reason="Блокировка администратором.")
-    flash("Пользователь заблокирован.", "danger")
+    flash("Пользователь заблокирован навсегда.", "danger")
+    return redirect(url_for("admin"))
+
+@app.route("/admin/user/<int:user_id>/ban-timed", methods=["POST"])
+@admin_required
+def admin_user_ban_timed(user_id):
+    if user_id == session.get("user_id"):
+        flash("Нельзя забанить самого себя.", "danger")
+        return redirect(url_for("admin"))
+    try:
+        minutes = int(request.form.get("minutes", 0))
+        if minutes <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        flash("Укажите корректное количество минут.", "danger")
+        return redirect(url_for("admin"))
+    from datetime import datetime, timedelta
+    until_iso = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+    reason = request.form.get("reason", "Блокировка администратором.").strip() or "Блокировка администратором."
+    ban_user(user_id, until_iso=until_iso, reason=reason)
+    hours = minutes // 60
+    mins = minutes % 60
+    label = f"{hours} ч {mins} мин" if hours else f"{mins} мин"
+    flash(f"Пользователь заблокирован на {label}.", "danger")
     return redirect(url_for("admin"))
 
 @app.route("/admin/user/<int:user_id>/unban")
@@ -521,6 +649,74 @@ def admin_user_delete(user_id):
     delete_user(user_id)
     flash("Пользователь удалён.", "info")
     return redirect(url_for("admin"))
+
+# ─── Поиск ───────────────────────────────────────────────────────────────────
+import re as _re
+
+def _highlight(text: str, query: str, max_len: int = 220) -> str:
+    """Обрезает текст вокруг первого вхождения запроса и выделяет совпадения."""
+    if not query or not text:
+        return text[:max_len] + ("…" if len(text) > max_len else "")
+    pat = _re.compile(_re.escape(query.strip()), _re.IGNORECASE)
+    m = pat.search(text)
+    if m:
+        start = max(0, m.start() - 80)
+        snippet = ("…" if start > 0 else "") + text[start:start + max_len]
+    else:
+        snippet = text[:max_len] + ("…" if len(text) > max_len else "")
+    return pat.sub(lambda x: f'<mark>{x.group()}</mark>', snippet)
+
+@app.route("/search")
+def search():
+    q = request.args.get("q", "").strip()
+    topic_results, post_results = [], []
+    if q and len(q) >= 2:
+        topic_results, post_results = search_forum(q)
+    return render_template(
+        "search.html",
+        q=q,
+        topic_results=topic_results,
+        post_results=post_results,
+        highlight=_highlight,
+    )
+
+# ─── Самоочистка ограничений для администратора ───────────────────────────────
+@app.route("/admin/self-clear")
+@admin_required
+def admin_self_clear():
+    admin_clear_own_restrictions(session["user_id"])
+    flash("Все ваши ограничения сняты.", "success")
+    return redirect(url_for("admin"))
+
+# ─── Жалобы на темы ─────────────────────────────────────────────────────────
+@app.route("/forum/topic/<int:topic_id>/report", methods=["POST"])
+@login_required
+def report_topic_route(topic_id):
+    t = get_topic_by_id(topic_id)
+    if not t:
+        abort(404)
+    result = report_topic(topic_id, session["user_id"])
+    if result.get("already"):
+        return jsonify({"status": "already", "message": "Вы уже жаловались на эту тему."})
+    count = result.get("count", 0)
+    flagged = result.get("flagged", False)
+    msg = "Жалоба принята."
+    if flagged:
+        msg = "Жалоба принята. Тема отправлена на проверку администратору."
+    return jsonify({"status": "ok", "message": msg, "count": count, "flagged": flagged})
+
+@app.route("/admin/topic/<int:topic_id>/dismiss-report")
+@admin_required
+def admin_dismiss_report(topic_id):
+    dismiss_topic_report(topic_id)
+    flash("Жалобы на тему сброшены.", "success")
+    return redirect(url_for("admin"))
+
+@app.route("/api/admin/reported-count")
+@admin_required
+def api_admin_reported_count():
+    reported = get_reported_topics()
+    return jsonify({"count": len(reported)})
 
 # ─── Ошибки ──────────────────────────────────────────────────────────────────
 @app.errorhandler(403)

@@ -42,11 +42,23 @@
   <button class="admin-tab active" data-tab="moderation">
     🛡️ Модерация
     {% if stats.pending > 0 %}
-      <span class="tab-badge">{{ stats.pending }}</span>
+      <span class="tab-badge" id="pending-badge">{{ stats.pending }}</span>
     {% endif %}
+  </button>
+  <button class="admin-tab" data-tab="reported">
+    🚨 Жалобы
+    {% if reported_topics|length > 0 %}
+      <span class="tab-badge reported-badge">{{ reported_topics|length }}</span>
+    {% endif %}
+  </button>
+  <button class="admin-tab" data-tab="topics">
+    📋 Темы
   </button>
   <button class="admin-tab" data-tab="users">
     👥 Пользователи
+  </button>
+  <button class="admin-tab" data-tab="toxicity">
+    📊 Токсичность
   </button>
 </div>
 
@@ -108,6 +120,122 @@
   {% endif %}
 </div>
 
+<!-- Вкладка: Жалобы на темы -->
+<div class="admin-panel" id="tab-reported" style="display:none">
+  <h2>🚨 Темы с жалобами ({{ reported_topics|length }})</h2>
+
+  {% if reported_topics %}
+  <div class="moderation-list">
+    {% for t in reported_topics %}
+    <div class="mod-card">
+      <div class="mod-card-header">
+        <div class="mod-meta">
+          <strong>{{ t.username }}</strong>
+          <span>в категории: {{ t.category_name }}</span>
+          <span class="mod-date">{{ t.created_at[:10] }}</span>
+        </div>
+        <div class="mod-score">
+          <span class="badge badge-danger-soft">⚠️ {{ t.report_count }} жалоб</span>
+        </div>
+      </div>
+
+      <div class="mod-content">
+        <strong>{{ t.title }}</strong>
+        <div style="color:var(--text-muted); font-size:.8rem; margin-top:4px;">
+          {{ t.reply_count }} ответов · {{ t.views }} просмотров
+        </div>
+      </div>
+
+      <div class="mod-actions">
+        <a href="{{ url_for('topic', topic_id=t.id) }}" target="_blank"
+           class="btn btn-outline btn-sm">
+          👁️ Просмотреть
+        </a>
+        <a href="{{ url_for('admin_dismiss_report', topic_id=t.id) }}"
+           class="btn btn-success btn-sm"
+           onclick="return confirm('Снять все жалобы с темы?')">
+          ✅ Снять жалобы
+        </a>
+        <a href="{{ url_for('admin_delete_topic', topic_id=t.id) }}"
+           class="btn btn-danger btn-sm"
+           onclick="return confirm('Удалить тему безвозвратно?')">
+          🗑️ Удалить тему
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span>✅</span>
+    <p>Нет тем с жалобами.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Вкладка: Все темы -->
+<div class="admin-panel" id="tab-topics" style="display:none">
+  <h2>📋 Все темы ({{ all_topics|length }})</h2>
+  <div class="users-table-wrap">
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Тема</th>
+          <th>Автор</th>
+          <th>Категория</th>
+          <th>Ответов</th>
+          <th>Жалоб</th>
+          <th>Дата</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in all_topics %}
+        <tr class="{% if t.is_reported %}row-reported{% endif %}">
+          <td>{{ t.id }}</td>
+          <td>
+            <a href="{{ url_for('topic', topic_id=t.id) }}" target="_blank"
+               style="color:var(--orange); font-weight:600;">
+              {% if t.is_pinned %}📌{% endif %}
+              {% if t.is_closed %}🔒{% endif %}
+              {{ t.title[:55] }}{% if t.title|length > 55 %}…{% endif %}
+            </a>
+          </td>
+          <td>{{ t.username }}</td>
+          <td>{{ t.category_name }}</td>
+          <td>{{ t.reply_count }}</td>
+          <td>
+            {% if t.report_count > 0 %}
+              <span class="badge badge-danger-soft">{{ t.report_count }}</span>
+            {% else %}0{% endif %}
+          </td>
+          <td>{{ t.created_at[:10] }}</td>
+          <td>
+            <div class="action-btns">
+              <a href="{{ url_for('admin_pin', topic_id=t.id) }}"
+                 class="btn btn-outline btn-xs" title="Закрепить/открепить">
+                📌
+              </a>
+              <a href="{{ url_for('admin_close', topic_id=t.id) }}"
+                 class="btn btn-outline btn-xs" title="Закрыть/открыть">
+                🔒
+              </a>
+              <a href="{{ url_for('admin_delete_topic', topic_id=t.id) }}"
+                 class="btn btn-danger btn-xs"
+                 onclick="return confirm('Удалить тему «{{ t.title[:30] }}» безвозвратно?')"
+                 title="Удалить тему">
+                🗑️
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <!-- Вкладка: Пользователи -->
 <div class="admin-panel" id="tab-users" style="display:none">
   <h2>👥 Пользователи ({{ users|length }})</h2>
@@ -118,27 +246,237 @@
           <th>ID</th>
           <th>Имя</th>
           <th>Роль</th>
-          <th>Дата регистрации</th>
+          <th>Статус</th>
+          <th>Регистрация</th>
+          <th>Действия</th>
         </tr>
       </thead>
       <tbody>
         {% for u in users %}
-        <tr class="{% if u.role == 'admin' %}row-admin{% endif %}">
+        <tr class="{% if u.role == 'admin' %}row-admin{% elif u.is_banned %}row-banned{% endif %}">
           <td>{{ u.id }}</td>
           <td>
-            {{ '+' if u.role == 'admin' else '-' }}
-            {{ u.username }}
+            <span style="font-weight:600;">{{ u.username }}</span>
           </td>
           <td>
             <span class="badge {{ 'badge-admin' if u.role == 'admin' else 'badge-user' }}">
               {{ u.role }}
             </span>
           </td>
+          <td>
+            {% if u.is_banned %}
+              <span class="badge badge-danger-soft">
+                🚫 Заблокирован
+                {% if u.banned_until %} до {{ u.banned_until[:10] }}{% endif %}
+              </span>
+            {% elif u.restricted_until %}
+              <span class="badge badge-warn-soft">⏳ Ограничен</span>
+            {% else %}
+              <span class="badge badge-ok-soft">✅ Активен</span>
+            {% endif %}
+          </td>
           <td>{{ u.created_at[:10] }}</td>
+          <td>
+            {% if u.role != 'admin' or u.id != current_user.id %}
+            <div class="action-btns">
+              {% if not u.is_banned %}
+                <!-- Ограничения -->
+                <a href="{{ url_for('admin_user_restrict', user_id=u.id, minutes=10) }}"
+                   class="btn btn-outline btn-xs" title="Ограничить на 10 мин">10 мин</a>
+                <a href="{{ url_for('admin_user_restrict', user_id=u.id, minutes=30) }}"
+                   class="btn btn-outline btn-xs" title="Ограничить на 30 мин">30 мин</a>
+                <a href="{{ url_for('admin_user_restrict', user_id=u.id, minutes=60) }}"
+                   class="btn btn-outline btn-xs" title="Ограничить на 1 час">1 час</a>
+                <button class="btn btn-outline btn-xs"
+                        onclick="openRestrictModal({{ u.id }}, '{{ u.username }}')"
+                        title="Своё время">✏️</button>
+
+                <!-- Бан -->
+                <button class="btn btn-danger btn-xs"
+                        onclick="openBanModal({{ u.id }}, '{{ u.username }}')"
+                        title="Заблокировать">🚫</button>
+              {% else %}
+                <a href="{{ url_for('admin_user_unban', user_id=u.id) }}"
+                   class="btn btn-success btn-xs">✅ Разбанить</a>
+              {% endif %}
+
+              {% if u.restricted_until %}
+                <a href="{{ url_for('admin_user_unrestrict', user_id=u.id) }}"
+                   class="btn btn-outline btn-xs">❌ Снять огр.</a>
+              {% endif %}
+
+              <a href="{{ url_for('admin_user_delete', user_id=u.id) }}"
+                 class="btn btn-outline btn-xs"
+                 onclick="return confirm('Удалить пользователя {{ u.username }} и весь его контент?')"
+                 title="Удалить пользователя">🗑️</a>
+            </div>
+            {% else %}
+              <div class="action-btns">
+                <span style="font-size:.75rem;color:var(--text-muted);">👑 Вы</span>
+                <a href="{{ url_for('admin_self_clear') }}"
+                   class="btn btn-outline btn-xs"
+                   title="Снять все ограничения с себя"
+                   onclick="return confirm('Снять все свои ограничения и предупреждения?')">
+                  🔓 Снять огр.
+                </a>
+              </div>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- Вкладка: Токсичность -->
+<div class="admin-panel" id="tab-toxicity" style="display:none">
+  <div class="tox-header">
+    <h2>📊 Дашборд токсичности</h2>
+    <div class="tox-legend">
+      <span class="tox-dot tox-ok"></span>Низкая (&lt;0.4)
+      <span class="tox-dot tox-warn"></span>Средняя (0.4–0.6)
+      <span class="tox-dot tox-danger"></span>Высокая (&gt;0.6)
+    </div>
+    <button class="btn btn-outline btn-sm" id="tox-refresh-btn" onclick="loadToxicityStats()">
+      🔄 Обновить
+    </button>
+  </div>
+
+  <div id="tox-loading" class="tox-loading">Загрузка данных…</div>
+  <div id="tox-empty" class="tox-empty" style="display:none">Нет данных о пользователях.</div>
+
+  <div class="tox-table-wrap" id="tox-table-wrap" style="display:none">
+    <table class="tox-table" id="tox-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Пользователь</th>
+          <th>Постов</th>
+          <th>Заблок.</th>
+          <th style="width:200px">Ср. токсичность</th>
+          <th>Макс.</th>
+          <th>Предупр.</th>
+          <th>Уровень</th>
+          <th>Статус</th>
+          <th>График</th>
+        </tr>
+      </thead>
+      <tbody id="tox-tbody"></tbody>
+    </table>
+  </div>
+
+  <p class="tox-refresh-note" id="tox-next-refresh"></p>
+</div>
+
+<!-- Модальное окно: График токсичности -->
+<div class="modal-backdrop" id="tox-history-modal" style="display:none">
+  <div class="modal-box modal-box--wide">
+    <div class="modal-header">
+      <span>📈 История токсичности: <strong id="tox-hist-name"></strong></span>
+      <button class="modal-close" onclick="closeModal('tox-history-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="tox-hist-summary" class="tox-hist-summary"></div>
+      <div id="tox-hist-loading" style="text-align:center;padding:30px;color:var(--text-muted)">Загрузка…</div>
+      <div id="tox-hist-chart-wrap" style="display:none">
+        <svg id="tox-hist-svg" width="100%" viewBox="0 0 520 180"
+             style="display:block;overflow:visible"></svg>
+        <div class="tox-hist-legend">
+          <span class="tox-hist-legend-item">
+            <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#d94f4f" stroke-width="1.5" stroke-dasharray="4,2"/></svg>
+            Порог (60%)
+          </span>
+          <span class="tox-hist-legend-item">
+            <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#5b8dee" stroke-width="1.5" stroke-dasharray="4,2"/></svg>
+            Среднее
+          </span>
+        </div>
+        <div id="tox-hist-tooltip" class="tox-hist-tooltip" style="display:none"></div>
+      </div>
+      <div id="tox-hist-empty" style="display:none;text-align:center;padding:30px;color:var(--text-muted)">
+        У пользователя пока нет постов.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно: Ограничение (своё время) -->
+<div class="modal-backdrop" id="restrict-modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>⏳ Ограничение публикаций</span>
+      <button class="modal-close" onclick="closeModal('restrict-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <p>Пользователь: <strong id="restrict-username"></strong></p>
+      <form method="POST" id="restrict-form" action="">
+        <div class="form-group" style="margin-top:14px;">
+          <label>Количество минут</label>
+          <input type="number" name="minutes" class="form-control"
+                 min="1" max="10080" placeholder="например, 120"
+                 required>
+          <small style="color:var(--text-muted);">1440 мин = 1 сутки, 10080 = 7 суток</small>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-warning btn-sm">Применить</button>
+          <button type="button" class="btn btn-outline btn-sm"
+                  onclick="closeModal('restrict-modal')">Отмена</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно: Бан -->
+<div class="modal-backdrop" id="ban-modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>🚫 Блокировка пользователя</span>
+      <button class="modal-close" onclick="closeModal('ban-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <p>Пользователь: <strong id="ban-username"></strong></p>
+      <div class="ban-quick-btns" id="ban-quick-btns">
+        <button class="btn btn-danger btn-sm" onclick="setBanMinutes(10)">10 мин</button>
+        <button class="btn btn-danger btn-sm" onclick="setBanMinutes(30)">30 мин</button>
+        <button class="btn btn-danger btn-sm" onclick="setBanMinutes(60)">1 час</button>
+        <button class="btn btn-danger btn-sm" onclick="setBanMinutes(1440)">1 день</button>
+        <button class="btn btn-danger btn-sm" onclick="setBanMinutes(10080)">7 дней</button>
+        <button class="btn btn-danger btn-sm" onclick="setBanPermanent()">Навсегда</button>
+      </div>
+
+      <!-- Форма временного бана -->
+      <form method="POST" id="ban-timed-form" action="" style="margin-top:14px;">
+        <div class="form-group">
+          <label>Длительность (минуты)</label>
+          <input type="number" name="minutes" id="ban-minutes-input" class="form-control"
+                 min="1" max="525600" placeholder="например, 60"
+                 required>
+          <small style="color:var(--text-muted);">10080 = 7 дней, 43200 = 30 дней</small>
+        </div>
+        <div class="form-group">
+          <label>Причина (необязательно)</label>
+          <input type="text" name="reason" class="form-control"
+                 placeholder="Нарушение правил форума">
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-danger btn-sm">Заблокировать на время</button>
+          <button type="button" class="btn btn-outline btn-sm"
+                  onclick="closeModal('ban-modal')">Отмена</button>
+        </div>
+      </form>
+
+      <!-- Форма перманентного бана -->
+      <form method="POST" id="ban-perm-form" action="" style="display:none; margin-top:14px;">
+        <p style="color:var(--red); font-weight:600;">Навсегда заблокировать пользователя?</p>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-danger btn-sm">Да, заблокировать навсегда</button>
+          <button type="button" class="btn btn-outline btn-sm"
+                  onclick="closeModal('ban-modal')">Отмена</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

@@ -16,7 +16,10 @@
 </div>
 
 <div class="form-section">
-  <form method="POST" id="new-topic-form">
+  <form method="POST" id="new-topic-form"
+        enctype="multipart/form-data">
+
+    <!-- Заголовок -->
     <div class="form-group">
       <label for="title">Заголовок темы</label>
       <input type="text" id="title" name="title"
@@ -25,6 +28,7 @@
              required minlength="5" maxlength="200">
     </div>
 
+    <!-- Текст -->
     <div class="form-group">
       <label for="content">Текст сообщения</label>
       <textarea id="content" name="content"
@@ -33,10 +37,51 @@
                 required minlength="10" rows="10"></textarea>
     </div>
 
+    {% if not is_announcements %}
+
+    <!-- Адресат -->
+    <div class="form-group">
+      <label for="addressed_to">Адресовано (необязательно)</label>
+      <select id="addressed_to" name="addressed_to" class="form-control">
+        <option value="">— Всем участникам —</option>
+        {% for u in all_users %}
+          {% if u.id != current_user.id %}
+          <option value="{{ u.id }}">
+            {{ '👔 ' if u.role == 'admin' else '👤 ' }}{{ u.username }}
+            {% if u.role == 'admin' %}(Руководитель){% endif %}
+          </option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <small class="form-hint">Укажите, кому конкретно адресована тема.</small>
+    </div>
+
+    <!-- Вложение -->
+    <div class="form-group">
+      <label for="attachment">Прикрепить файл
+        <span class="form-hint">(не более {{ config_max_mb }} МБ)</span>
+      </label>
+      <input type="file" id="attachment" name="attachment"
+             class="form-control-file"
+             accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.zip,.rar,.txt,.csv">
+      <small class="form-hint">
+        Допустимые форматы: PDF, Word, Excel, изображения, ZIP, TXT, CSV.
+      </small>
+    </div>
+
+    {% endif %}
+
+    <!-- Закрепить (только руководитель/администратор) -->
+    {% if is_admin %}
+    <div class="form-group form-group-inline">
+      <input type="checkbox" id="is_pinned" name="is_pinned" value="1">
+      <label for="is_pinned" class="label-inline">📌 Закрепить тему</label>
+    </div>
+    {% endif %}
+
     <div class="ai-notice">
       🛡️ <strong>ИИ-модерация:</strong>
       Ваше сообщение будет автоматически проверено перед публикацией.
-      Сообщения, нарушающие правила, будут заблокированы. А также, вы получите предупреждение!
     </div>
 
     <div class="form-actions">
